@@ -1,11 +1,11 @@
 import argparse
-from typing import (
-    List,
-    Any
-)
-from hummingbot.exceptions import ArgumentParserError
+from typing import TYPE_CHECKING, Any, List
+
 from hummingbot.client.command.connect_command import OPTIONS as CONNECT_OPTIONS
-from hummingbot.client.config.global_config_map import global_config_map
+from hummingbot.exceptions import ArgumentParserError
+
+if TYPE_CHECKING:
+    from hummingbot.client.hummingbot_application import HummingbotApplication
 
 
 class ThrowingArgumentParser(argparse.ArgumentParser):
@@ -37,7 +37,7 @@ class ThrowingArgumentParser(argparse.ArgumentParser):
         return filtered
 
 
-def load_parser(hummingbot, command_tabs) -> [ThrowingArgumentParser, Any]:
+def load_parser(hummingbot: "HummingbotApplication", command_tabs) -> [ThrowingArgumentParser, Any]:
     parser = ThrowingArgumentParser(prog="", add_help=False)
     subparsers = parser.add_subparsers()
 
@@ -46,7 +46,8 @@ def load_parser(hummingbot, command_tabs) -> [ThrowingArgumentParser, Any]:
     connect_parser.set_defaults(func=hummingbot.connect)
 
     create_parser = subparsers.add_parser("create", help="Create a new bot")
-    create_parser.add_argument("file_name", nargs="?", default=None, help="Name of the configuration file")
+    create_parser.add_argument("--script-config", dest="script_to_config", nargs="?", default=None, help="Name of the v2 strategy")
+    create_parser.add_argument("--controller-config", dest="controller_name", nargs="?", default=None, help="Name of the controller")
     create_parser.set_defaults(func=hummingbot.create)
 
     import_parser = subparsers.add_parser("import", help="Import an existing bot by loading the configuration file")
@@ -69,8 +70,10 @@ def load_parser(hummingbot, command_tabs) -> [ThrowingArgumentParser, Any]:
     config_parser.set_defaults(func=hummingbot.config)
 
     start_parser = subparsers.add_parser("start", help="Start the current bot")
-    start_parser.add_argument("--restore", default=False, action="store_true", dest="restore", help="Restore and maintain any active orders.")
     # start_parser.add_argument("--log-level", help="Level of logging")
+    start_parser.add_argument("--script", type=str, dest="script", help="Script strategy file name")
+    start_parser.add_argument("--conf", type=str, dest="conf", help="Script config file name")
+
     start_parser.set_defaults(func=hummingbot.start)
 
     stop_parser = subparsers.add_parser('stop', help="Stop the current bot")
@@ -89,14 +92,43 @@ def load_parser(hummingbot, command_tabs) -> [ThrowingArgumentParser, Any]:
                                 dest="precision", help="Level of precions for values displayed")
     history_parser.set_defaults(func=hummingbot.history)
 
-    gateway_parser = subparsers.add_parser("gateway", help="Gateway API configurations")
-    gateway_parser.add_argument("option", nargs="?", choices=("update", "list-configs", "generate_certs"), help="Gateway configuration choices")
-    gateway_parser.add_argument("key", nargs="?", default=None, help="Name of the parameter you want to change")
-    gateway_parser.add_argument("value", nargs="?", default=None, help="New value for the parameter")
-    gateway_parser.set_defaults(func=hummingbot.gateway)
+    gateway_parser = subparsers.add_parser("gateway", help="Helper comands for Gateway server.")
+    gateway_subparsers = gateway_parser.add_subparsers()
+
+    gateway_balance_parser = gateway_subparsers.add_parser("balance", help="Display your asset balances and allowances across all connected gateway connectors")
+    gateway_balance_parser.add_argument("connector_chain_network", nargs="?", default=None, help="Name of connector_chain_network balance and allowance you want to fetch")
+    gateway_balance_parser.set_defaults(func=hummingbot.gateway_balance)
+
+    gateway_config_parser = gateway_subparsers.add_parser("config", help="View or update gateway configuration")
+    gateway_config_parser.add_argument("key", nargs="?", default=None, help="Name of the parameter you want to view/change")
+    gateway_config_parser.add_argument("value", nargs="?", default=None, help="New value for the parameter")
+    gateway_config_parser.set_defaults(func=hummingbot.gateway_config)
+
+    gateway_connect_parser = gateway_subparsers.add_parser("connect", help="Create/view connection info for gateway connector")
+    gateway_connect_parser.add_argument("connector", nargs="?", default=None, help="Name of connector you want to create a profile for")
+    gateway_connect_parser.set_defaults(func=hummingbot.gateway_connect)
+
+    gateway_connector_tokens_parser = gateway_subparsers.add_parser("connector-tokens", help="Report token balances for gateway connectors")
+    gateway_connector_tokens_parser.add_argument("connector_chain_network", nargs="?", default=None, help="Name of connector_chain_network you want to edit reported tokens for")
+    gateway_connector_tokens_parser.add_argument("new_tokens", nargs="?", default=None, help="Report balance of these tokens - separate multiple tokens with commas (,)")
+    gateway_connector_tokens_parser.set_defaults(func=hummingbot.gateway_connector_tokens)
+
+    gateway_approve_tokens_parser = gateway_subparsers.add_parser("approve-tokens", help="Approve tokens for gateway connectors")
+    gateway_approve_tokens_parser.add_argument("connector_chain_network", nargs="?", default=None, help="Name of connector you want to approve tokens for")
+    gateway_approve_tokens_parser.add_argument("tokens", nargs="?", default=None, help="Approve these tokens")
+    gateway_approve_tokens_parser.set_defaults(func=hummingbot.gateway_approve_tokens)
+
+    gateway_cert_parser = gateway_subparsers.add_parser("generate-certs", help="Create ssl certifcate for gateway")
+    gateway_cert_parser.set_defaults(func=hummingbot.generate_certs)
+
+    gateway_list_parser = gateway_subparsers.add_parser("list", help="List gateway connectors and chains and tiers")
+    gateway_list_parser.set_defaults(func=hummingbot.gateway_list)
+
+    gateway_test_parser = gateway_subparsers.add_parser("test-connection", help="Ping gateway api server")
+    gateway_test_parser.set_defaults(func=hummingbot.test_connection)
 
     exit_parser = subparsers.add_parser("exit", help="Exit and cancel all outstanding orders")
-    exit_parser.add_argument("-f", "--force", "--suspend", action="store_true", help="Force exit without cancelling outstanding orders",
+    exit_parser.add_argument("-f", "--force", action="store_true", help="Force exit without canceling outstanding orders",
                              default=False)
     exit_parser.set_defaults(func=hummingbot.exit)
 
@@ -110,27 +142,55 @@ def load_parser(hummingbot, command_tabs) -> [ThrowingArgumentParser, Any]:
     ticker_parser.add_argument("--market", type=str, dest="market", help="The market (trading pair) of the order book")
     ticker_parser.set_defaults(func=hummingbot.ticker)
 
-    script_parser = subparsers.add_parser("script", help="Send command to running script instance")
-    script_parser.add_argument("cmd", nargs="?", default=None, help="Command")
-    script_parser.add_argument("args", nargs="*", default=None, help="Arguments")
-    script_parser.set_defaults(func=hummingbot.script_command)
+    pmm_script_parser = subparsers.add_parser("pmm_script", help="Send command to running PMM script instance")
+    pmm_script_parser.add_argument("cmd", nargs="?", default=None, help="Command")
+    pmm_script_parser.add_argument("args", nargs="*", default=None, help="Arguments")
+    pmm_script_parser.set_defaults(func=hummingbot.pmm_script_command)
+
+    previous_strategy_parser = subparsers.add_parser("previous", help="Imports the last strategy used")
+    previous_strategy_parser.add_argument("option", nargs="?", choices=["Yes,No"], default=None)
+    previous_strategy_parser.set_defaults(func=hummingbot.previous_strategy)
+
+    mqtt_parser = subparsers.add_parser("mqtt", help="Manage MQTT Bridge to Message brokers")
+    mqtt_subparsers = mqtt_parser.add_subparsers()
+    mqtt_start_parser = mqtt_subparsers.add_parser("start", help="Start the MQTT Bridge")
+    mqtt_start_parser.add_argument(
+        "-t",
+        "--timeout",
+        default=30.0,
+        type=float,
+        dest="timeout",
+        help="Bridge connection timeout"
+    )
+    mqtt_start_parser.set_defaults(func=hummingbot.mqtt_start)
+    mqtt_stop_parser = mqtt_subparsers.add_parser("stop", help="Stop the MQTT Bridge")
+    mqtt_stop_parser.set_defaults(func=hummingbot.mqtt_stop)
+    mqtt_restart_parser = mqtt_subparsers.add_parser("restart", help="Restart the MQTT Bridge")
+    mqtt_restart_parser.add_argument(
+        "-t",
+        "--timeout",
+        default=30.0,
+        type=float,
+        dest="timeout",
+        help="Bridge connection timeout"
+    )
+    mqtt_restart_parser.set_defaults(func=hummingbot.mqtt_restart)
 
     # add shortcuts so they appear in command help
-    shortcuts = global_config_map.get("command_shortcuts").value
-    if shortcuts is not None:
-        for shortcut in shortcuts:
-            help_str = shortcut['help']
-            command = shortcut['command']
-            shortcut_parser = subparsers.add_parser(command, help=help_str)
-            args = shortcut['arguments']
-            for i in range(len(args)):
-                shortcut_parser.add_argument(f'${i+1}', help=args[i])
+    shortcuts = hummingbot.client_config_map.command_shortcuts
+    for shortcut in shortcuts:
+        help_str = shortcut.help
+        command = shortcut.command
+        shortcut_parser = subparsers.add_parser(command, help=help_str)
+        args = shortcut.arguments
+        for i in range(len(args)):
+            shortcut_parser.add_argument(f'${i+1}', help=args[i])
 
     rate_parser = subparsers.add_parser('rate', help="Show rate of a given trading pair")
     rate_parser.add_argument("-p", "--pair", default=None,
-                             dest="pair", help="The market trading pair you want to see rate.")
+                             dest="pair", help="The market trading pair for which you want to get a rate.")
     rate_parser.add_argument("-t", "--token", default=None,
-                             dest="token", help="The token you want to see its value.")
+                             dest="token", help="The token who's value you want to get.")
     rate_parser.set_defaults(func=hummingbot.rate)
 
     for name, command_tab in command_tabs.items():

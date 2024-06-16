@@ -1,9 +1,9 @@
 from copy import deepcopy
-from typing import AsyncGenerator, List, Optional
+from typing import AsyncGenerator, Dict, List, Optional
 
 from hummingbot.core.web_assistant.auth import AuthBase
-from hummingbot.core.web_assistant.connections.ws_connection import WSConnection
 from hummingbot.core.web_assistant.connections.data_types import WSRequest, WSResponse
+from hummingbot.core.web_assistant.connections.ws_connection import WSConnection
 from hummingbot.core.web_assistant.ws_post_processors import WSPostProcessorBase
 from hummingbot.core.web_assistant.ws_pre_processors import WSPreProcessorBase
 
@@ -38,8 +38,9 @@ class WSAssistant:
         *,
         ping_timeout: float = 10,
         message_timeout: Optional[float] = None,
+        ws_headers: Optional[Dict] = {},
     ):
-        await self._connection.connect(ws_url, ping_timeout, message_timeout)
+        await self._connection.connect(ws_url=ws_url, ws_headers=ws_headers, ping_timeout=ping_timeout, message_timeout=message_timeout)
 
     async def disconnect(self):
         await self._connection.disconnect()

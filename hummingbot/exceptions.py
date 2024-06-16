@@ -20,3 +20,15 @@ class OracleRateUnavailable(HummingbotBaseException):
     """
     Asset value from third party is unavailable
     """
+
+
+class InvalidScriptModule(HummingbotBaseException):
+    """
+    The file does not contain a ScriptBase subclass
+    """
+
+
+class InvalidController(HummingbotBaseException):
+    """
+    The file does not contain a ControllerBase subclass
+    """

@@ -4,8 +4,8 @@ string and determines whether it is valid input. This file contains many validat
 hummingbot ConfigVars.
 """
 
+import re
 import time
-
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
@@ -34,7 +34,8 @@ def validate_connector(value: str) -> Optional[str]:
     Restrict valid derivatives to the connector file names
     """
     from hummingbot.client.settings import AllConnectorSettings
-    if value not in AllConnectorSettings.get_connector_settings():
+    if (value not in AllConnectorSettings.get_connector_settings()
+            and value not in AllConnectorSettings.paper_trade_connectors_names):
         return f"Invalid connector, please choose value from {AllConnectorSettings.get_connector_settings().keys()}"
 
 
@@ -123,6 +124,32 @@ def validate_int(value: str, min_value: int = None, max_value: int = None, inclu
             return f"Value must be less than {max_value}."
 
 
+def validate_float(value: str, min_value: float = None, max_value: float = None, inclusive=True) -> Optional[str]:
+    """
+    Parse an float value from a string. This value can also be clamped.
+    """
+    try:
+        float_value = float(value)
+    except Exception:
+        return f"{value} is not in integer format."
+    if inclusive:
+        if min_value is not None and max_value is not None:
+            if not (min_value <= float_value <= max_value):
+                return f"Value must be between {min_value} and {max_value}."
+        elif min_value is not None and not float_value >= min_value:
+            return f"Value cannot be less than {min_value}."
+        elif max_value is not None and not float_value <= max_value:
+            return f"Value cannot be more than {max_value}."
+    else:
+        if min_value is not None and max_value is not None:
+            if not (min_value < float_value < max_value):
+                return f"Value must be between {min_value} and {max_value} (exclusive)."
+        elif min_value is not None and not float_value > min_value:
+            return f"Value must be more than {min_value}."
+        elif max_value is not None and not float_value < max_value:
+            return f"Value must be less than {max_value}."
+
+
 def validate_datetime_iso_string(value: str) -> Optional[str]:
     try:
         datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
@@ -135,3 +162,11 @@ def validate_time_iso_string(value: str) -> Optional[str]:
         time.strptime(value, '%H:%M:%S')
     except ValueError:
         return "Incorrect time format (expected is HH:MM:SS)"
+
+
+def validate_with_regex(value: str, pattern: str, error_message: str) -> Optional[str]:
+    """
+    Validate a string using a regex pattern.
+    """
+    if not re.match(pattern, value):
+        return error_message

@@ -1,16 +1,14 @@
 import asyncio
-import datetime
-import psutil
 from decimal import Decimal
-from typing import (
-    List,
-    Set,
-    Tuple,
-)
+from typing import List, Optional, Set, Tuple
 
+import pandas as pd
+import psutil
+import tabulate
+
+from hummingbot.client.config.config_data_types import ClientConfigEnum
 from hummingbot.client.performance import PerformanceMetrics
 from hummingbot.model.trade_fill import TradeFill
-
 
 s_decimal_0 = Decimal("0")
 
@@ -27,7 +25,12 @@ async def start_timer(timer):
     count = 1
     while True:
         count += 1
-        timer.log(f"Duration: {datetime.timedelta(seconds=count)}")
+
+        mins, sec = divmod(count, 60)
+        hour, mins = divmod(mins, 60)
+        days, hour = divmod(hour, 24)
+
+        timer.log(f"Uptime: {days:>3} day(s), {hour:02}:{mins:02}:{sec:02}")
         await _sleep(1)
 
 
@@ -73,7 +76,7 @@ async def start_trade_monitor(trade_monitor):
                             for market, symbol in market_info:
                                 cur_trades = [t for t in trades if t.market == market and t.symbol == symbol]
                                 cur_balances = await hb.get_current_balances(market)
-                                perf = await PerformanceMetrics.create(market, symbol, cur_trades, cur_balances)
+                                perf = await PerformanceMetrics.create(symbol, cur_trades, cur_balances)
                                 return_pcts.append(perf.return_pct)
                                 pnls.append(perf.total_pnl)
                             avg_return = sum(return_pcts) / len(return_pcts) if len(return_pcts) > 0 else s_decimal_0
@@ -91,3 +94,24 @@ async def start_trade_monitor(trade_monitor):
             raise
         except Exception:
             hb.logger().exception("start_trade_monitor failed.")
+
+
+def format_df_for_printout(
+    df: pd.DataFrame, table_format: ClientConfigEnum, max_col_width: Optional[int] = None, index: bool = False
+) -> str:
+    if max_col_width is not None:  # in anticipation of the next release of tabulate which will include maxcolwidth
+        max_col_width = max(max_col_width, 4)
+        df = df.astype(str).apply(
+            lambda s: s.apply(
+                lambda e: e if len(e) < max_col_width else f"{e[:max_col_width - 3]}..."
+            )
+        )
+        df.columns = [c if len(c) < max_col_width else f"{c[:max_col_width - 3]}..." for c in df.columns]
+
+    original_preserve_whitespace = tabulate.PRESERVE_WHITESPACE
+    tabulate.PRESERVE_WHITESPACE = True
+    try:
+        formatted_df = tabulate.tabulate(df, tablefmt=table_format, showindex=index, headers="keys")
+    finally:
+        tabulate.PRESERVE_WHITESPACE = original_preserve_whitespace
+    return formatted_df

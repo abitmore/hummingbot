@@ -1,9 +1,18 @@
+import asyncio
 import unittest
 from decimal import Decimal
-import asyncio
 from typing import Awaitable
-from unittest.mock import patch, MagicMock, AsyncMock, PropertyMock
-from hummingbot.client.ui.interface_utils import start_trade_monitor, format_bytes, start_timer, start_process_monitor
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+
+import pandas as pd
+
+from hummingbot.client.ui.interface_utils import (
+    format_bytes,
+    format_df_for_printout,
+    start_process_monitor,
+    start_timer,
+    start_trade_monitor,
+)
 
 
 class ExpectedException(Exception):
@@ -11,6 +20,12 @@ class ExpectedException(Exception):
 
 
 class InterfaceUtilsTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        ev_loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
+        for task in asyncio.all_tasks(ev_loop):
+            task.cancel()
+
     def setUp(self) -> None:
         super().setUp()
         self.ev_loop = asyncio.get_event_loop()
@@ -30,8 +45,8 @@ class InterfaceUtilsTest(unittest.TestCase):
         mock_sleep.side_effect = [None, ExpectedException()]
         with self.assertRaises(ExpectedException):
             self.async_run_with_timeout(start_timer(mock_timer))
-        self.assertEqual('Duration: 0:00:02', mock_timer.log.call_args_list[0].args[0])
-        self.assertEqual('Duration: 0:00:03', mock_timer.log.call_args_list[1].args[0])
+        self.assertEqual('Uptime:   0 day(s), 00:00:02', mock_timer.log.call_args_list[0].args[0])
+        self.assertEqual('Uptime:   0 day(s), 00:00:03', mock_timer.log.call_args_list[1].args[0])
 
     @patch("hummingbot.client.ui.interface_utils._sleep", new_callable=AsyncMock)
     @patch("psutil.Process")
@@ -152,3 +167,77 @@ class InterfaceUtilsTest(unittest.TestCase):
         with self.assertRaises(asyncio.CancelledError):
             self.async_run_with_timeout(start_trade_monitor(mock_result))
         self.assertEqual(2, mock_app.strategy_task.done.call_count)  # was called again after exception
+
+    def test_format_df_for_printout(self):
+        df = pd.DataFrame(
+            data={
+                "first": [1, 2],
+                "second": ["12345", "67890"],
+            }
+        )
+
+        df_str = format_df_for_printout(df, table_format="psql")
+        target_str = (
+            "+---------+----------+"
+            "\n|   first |   second |"
+            "\n|---------+----------|"
+            "\n|       1 |    12345 |"
+            "\n|       2 |    67890 |"
+            "\n+---------+----------+"
+        )
+
+        self.assertEqual(target_str, df_str)
+
+        df_str = format_df_for_printout(df, table_format="psql", max_col_width=4)
+        target_str = (
+            "+--------+--------+"
+            "\n|   f... | s...   |"
+            "\n|--------+--------|"
+            "\n|      1 | 1...   |"
+            "\n|      2 | 6...   |"
+            "\n+--------+--------+"
+        )
+
+        self.assertEqual(target_str, df_str)
+
+        df_str = format_df_for_printout(df, table_format="psql", index=True)
+        target_str = (
+            "+----+---------+----------+"
+            "\n|    |   first |   second |"
+            "\n|----+---------+----------|"
+            "\n|  0 |       1 |    12345 |"
+            "\n|  1 |       2 |    67890 |"
+            "\n+----+---------+----------+"
+        )
+
+        self.assertEqual(target_str, df_str)
+
+    def test_format_df_for_printout_table_format_from_global_config(self):
+        df = pd.DataFrame(
+            data={
+                "first": [1, 2],
+                "second": ["12345", "67890"],
+            }
+        )
+
+        df_str = format_df_for_printout(df, table_format="psql")
+        target_str = (
+            "+---------+----------+"
+            "\n|   first |   second |"
+            "\n|---------+----------|"
+            "\n|       1 |    12345 |"
+            "\n|       2 |    67890 |"
+            "\n+---------+----------+"
+        )
+
+        self.assertEqual(target_str, df_str)
+
+        df_str = format_df_for_printout(df, table_format="simple")
+        target_str = (
+            "  first    second"
+            "\n-------  --------"
+            "\n      1     12345"
+            "\n      2     67890"
+        )
+
+        self.assertEqual(target_str, df_str)

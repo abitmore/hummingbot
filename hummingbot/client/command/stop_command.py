@@ -2,10 +2,13 @@ import asyncio
 import platform
 import threading
 from typing import TYPE_CHECKING
-from hummingbot.core.utils.async_utils import safe_ensure_future
+
 from hummingbot.core.rate_oracle.rate_oracle import RateOracle
+from hummingbot.core.utils.async_utils import safe_ensure_future
+from hummingbot.strategy.script_strategy_base import ScriptStrategyBase
+
 if TYPE_CHECKING:
-    from hummingbot.client.hummingbot_application import HummingbotApplication
+    from hummingbot.client.hummingbot_application import HummingbotApplication  # noqa: F401
 
 
 class StopCommand:
@@ -19,15 +22,18 @@ class StopCommand:
     async def stop_loop(self,  # type: HummingbotApplication
                         skip_order_cancellation: bool = False):
         self.logger().info("stop command initiated.")
-        self._notify("\nWinding down...")
+        self.notify("\nWinding down...")
 
         # Restore App Nap on macOS.
         if platform.system() == "Darwin":
             import appnope
             appnope.nap()
 
-        if self._script_iterator is not None:
-            self._script_iterator.stop(self.clock)
+        if self._pmm_script_iterator is not None:
+            self._pmm_script_iterator.stop(self.clock)
+
+        if isinstance(self.strategy, ScriptStrategyBase):
+            self.strategy.on_stop()
 
         if self._trading_required and not skip_order_cancellation:
             # Remove the strategy from clock before cancelling orders, to
@@ -37,7 +43,7 @@ class StopCommand:
                 self.clock.remove_iterator(self.strategy)
             success = await self._cancel_outstanding_orders()
             # Give some time for cancellation events to trigger
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(2)
             if success:
                 # Only erase markets when cancellation has been successful
                 self.markets = {}

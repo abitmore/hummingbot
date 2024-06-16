@@ -1,17 +1,22 @@
 """
 Functions for generating keys and certificates
 """
+from datetime import datetime, timedelta
+from os import listdir
+from os.path import join
+from typing import TYPE_CHECKING
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
-from datetime import datetime, timedelta
-from hummingbot import cert_path
-from os import listdir
-from os.path import join
+
+from hummingbot import root_path
+from hummingbot.core.gateway import get_gateway_paths
+
+if TYPE_CHECKING:
+    from hummingbot.client.config.config_helpers import ClientConfigAdapter
 
 CERT_SUBJECT = [
     x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'localhost'),
@@ -20,6 +25,7 @@ CERT_SUBJECT = [
 # Set alternative DNS
 SAN_DNS = [x509.DNSName('localhost')]
 VALIDITY_DURATION = 365
+CONF_DIR_PATH = root_path() / "conf"
 
 
 def generate_private_key(password, filepath):
@@ -166,7 +172,7 @@ client_cert_filename = 'client_cert.pem'
 client_csr_filename = 'client_csr.pem'
 
 
-def certs_files_exist() -> bool:
+def certs_files_exist(client_config_map: "ClientConfigAdapter") -> bool:
     """
     Check if the necessary key and certificate files exist
     """
@@ -174,25 +180,24 @@ def certs_files_exist() -> bool:
                       server_key_filename, server_cert_filename,
                       client_key_filename, client_cert_filename]
 
-    file_list = listdir(cert_path())
+    file_list = listdir(get_gateway_paths(client_config_map).local_certs_path.as_posix())
     return all(elem in file_list for elem in required_certs)
 
 
-def create_self_sign_certs(pass_phase: str):
+def create_self_sign_certs(pass_phase: str, cert_path: str):
     """
     Create self-sign CA Cert
     """
-    CERT_FILE_PATH = cert_path()
 
     filepath_list = {
-        'ca_key': join(CERT_FILE_PATH, ca_key_filename),
-        'ca_cert': join(CERT_FILE_PATH, ca_cert_filename),
-        'server_key': join(CERT_FILE_PATH, server_key_filename),
-        'server_cert': join(CERT_FILE_PATH, server_cert_filename),
-        'server_csr': join(CERT_FILE_PATH, server_csr_filename),
-        'client_key': join(CERT_FILE_PATH, client_key_filename),
-        'client_cert': join(CERT_FILE_PATH, client_cert_filename),
-        'client_csr': join(CERT_FILE_PATH, client_csr_filename)
+        'ca_key': join(cert_path, ca_key_filename),
+        'ca_cert': join(cert_path, ca_cert_filename),
+        'server_key': join(cert_path, server_key_filename),
+        'server_cert': join(cert_path, server_cert_filename),
+        'server_csr': join(cert_path, server_csr_filename),
+        'client_key': join(cert_path, client_key_filename),
+        'client_cert': join(cert_path, client_cert_filename),
+        'client_csr': join(cert_path, client_csr_filename)
     }
 
     # Create CA Private & Public Keys for signing

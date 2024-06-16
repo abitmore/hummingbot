@@ -1,26 +1,10 @@
 from datetime import datetime
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-)
+from typing import Any, Dict, List, Optional
 
 import numpy
 import pandas as pd
-from sqlalchemy import (
-    BigInteger,
-    Column,
-    ForeignKey,
-    Index,
-    Integer,
-    JSON,
-    Text,
-)
-from sqlalchemy.orm import (
-    relationship,
-    Session
-)
+from sqlalchemy import JSON, BigInteger, Column, ForeignKey, Index, Integer, Text
+from sqlalchemy.orm import Session, relationship
 
 from hummingbot.core.event.events import PositionAction
 from hummingbot.model import HummingbotBase
@@ -53,16 +37,18 @@ class TradeFill(HummingbotBase):
     amount = Column(SqliteDecimal(6), nullable=False)
     leverage = Column(Integer, nullable=False, default=1)
     trade_fee = Column(JSON, nullable=False)
+    trade_fee_in_quote = Column(SqliteDecimal(6))
     exchange_trade_id = Column(Text, primary_key=True, nullable=False)
     position = Column(Text, nullable=True, default=PositionAction.NIL.value)
     order = relationship("Order", back_populates="trade_fills")
 
     def __repr__(self) -> str:
         return f"TradeFill(config_file_path='{self.config_file_path}', strategy='{self.strategy}', " \
-            f"market='{self.market}', symbol='{self.symbol}', base_asset='{self.base_asset}', " \
-            f"quote_asset='{self.quote_asset}', timestamp={self.timestamp}, order_id='{self.order_id}', " \
-            f"trade_type='{self.trade_type}', order_type='{self.order_type}', price={self.price}, amount={self.amount}, " \
-            f"leverage={self.leverage}, trade_fee={self.trade_fee}, exchange_trade_id={self.exchange_trade_id}, position={self.position})"
+               f"market='{self.market}', symbol='{self.symbol}', base_asset='{self.base_asset}', " \
+               f"quote_asset='{self.quote_asset}', timestamp={self.timestamp}, order_id='{self.order_id}', " \
+               f"trade_type='{self.trade_type}', order_type='{self.order_type}', price={self.price}, " \
+               f"amount={self.amount}, leverage={self.leverage}, trade_fee={self.trade_fee}, " \
+               f"exchange_trade_id={self.exchange_trade_id}, position={self.position})"
 
     @staticmethod
     def get_trades(sql_session: Session,
@@ -119,10 +105,11 @@ class TradeFill(HummingbotBase):
         data = []
         for trade in trades:
 
-            # // indicates order is a paper order so 'n/a'. For real orders, calculate age.
-            age = "n/a"
-            if "//" not in trade.order_id:
-                age = pd.Timestamp(int(trade.timestamp / 1e3 - int(trade.order_id[-16:]) / 1e6), unit='s').strftime('%H:%M:%S')
+            if trade.order is None:  # order creation update has not arrived yet
+                age = pd.Timestamp(0, unit='s').strftime('%H:%M:%S')
+            else:
+                age = pd.Timestamp(int(trade.timestamp / 1e3 - trade.order.creation_timestamp / 1e3),
+                                   unit='s').strftime('%H:%M:%S')
             data.append([
                 trade.exchange_trade_id,
                 datetime.fromtimestamp(int(trade.timestamp / 1e3)).strftime("%Y-%m-%d %H:%M:%S"),
@@ -157,3 +144,25 @@ class TradeFill(HummingbotBase):
                 "trade_fee": trade_fill.trade_fee,
             }
         }
+
+    @staticmethod
+    def attribute_names_for_file_export():
+
+        return [
+            "exchange_trade_id",  # Keep the key attribute first in the list
+            "config_file_path",
+            "strategy",
+            "market",
+            "symbol",
+            "base_asset",
+            "quote_asset",
+            "timestamp",
+            "order_id",
+            "trade_type",
+            "order_type",
+            "price",
+            "amount",
+            "leverage",
+            "trade_fee",
+            "trade_fee_in_quote",
+            "position", ]

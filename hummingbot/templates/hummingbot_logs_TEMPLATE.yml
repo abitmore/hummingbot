@@ -1,6 +1,6 @@
 ---
 version: 1
-template_version: 11
+template_version: 12
 
 formatters:
     simple:
@@ -31,12 +31,6 @@ handlers:
         when: "D"
         interval: 1
         backupCount: 7
-    report_proxy_handler:
-        class: hummingbot.logger.reporting_proxy_handler.ReportingProxyHandler
-        level: DEBUG
-        proxy_url: https://api.coinalpha.com/reporting-proxy-v2
-        enable_order_event_logging: false
-        capacity: 1
     "null":
         class: logging.NullHandler
         level: DEBUG
@@ -45,36 +39,45 @@ loggers:
     hummingbot.core.utils.eth_gas_station_lookup:
         level: NETWORK
         propagate: false
-        handlers: [console_info, file_handler]
+        handlers: [console, file_handler]
+        mqtt: true
     hummingbot.logger.log_server_client:
         level: WARNING
         propagate: false
-        handlers: [console_info, file_handler]
+        handlers: [console, file_handler]
+        mqtt: true
     hummingbot.logger.reporting_proxy_handler:
         level: WARNING
         propagate: false
-        handlers: [console_info, file_handler]
+        handlers: [console, file_handler]
+        mqtt: true
     hummingbot.strategy:
         level: NETWORK
-        handlers: [console_info, file_handler]
         propagate: false
+        handlers: [console, file_handler]
+        mqtt: true
     hummingbot.connector:
         level: NETWORK
-        handlers: [console_info, file_handler]
         propagate: false
+        handlers: [console, file_handler]
+        mqtt: true
     hummingbot.client:
         level: NETWORK
-        handlers: [console_info, file_handler]
         propagate: false
+        handlers: [console, file_handler]
+        mqtt: true
     hummingbot.core.event.event_reporter:
         level: EVENT_LOG
-        handlers: [file_handler, report_proxy_handler]
         propagate: false
+        handlers: [file_handler]
+        mqtt: false
     conf:
         level: NETWORK
         handlers: ["null"]
         propagate: false
+        mqtt: false
 
 root:
     level: INFO
     handlers: [console, file_handler]
+    mqtt: true

@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from hummingbot.core.event.events import PositionSide
+from hummingbot.core.data_type.common import PositionSide
 
 
 class Position:
@@ -17,6 +17,18 @@ class Position:
         self._entry_price = entry_price
         self._amount = amount
         self._leverage = leverage
+
+    def __repr__(self) -> str:
+        return (
+            f"Position("
+            f" trading_pair={self._trading_pair},"
+            f" position_side={self._position_side},"
+            f" unrealized_pnl={self._unrealized_pnl},"
+            f" entry_price={self._entry_price},"
+            f" amount={self._amount},"
+            f" leverage={self._leverage}"
+            f")"
+        )
 
     @property
     def trading_pair(self) -> str:
@@ -43,11 +55,13 @@ class Position:
         return self._leverage
 
     def update_position(self,
-                        position_side: str = None,
+                        position_side: PositionSide = None,
                         unrealized_pnl: Decimal = None,
                         entry_price: Decimal = None,
-                        amount: Decimal = None):
+                        amount: Decimal = None,
+                        leverage: Decimal = None):
         self._position_side = position_side if position_side is not None else self._position_side
         self._unrealized_pnl = unrealized_pnl if unrealized_pnl is not None else self._unrealized_pnl
         self._entry_price = entry_price if entry_price is not None else self._entry_price
         self._amount = amount if amount is not None else self._amount
+        self._leverage = leverage if leverage is not None else self._leverage

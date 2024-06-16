@@ -1,7 +1,8 @@
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from hummingbot.core.event.events import OrderFilledEvent, TradeType
+from hummingbot.core.data_type.common import TradeType
+from hummingbot.core.event.events import OrderFilledEvent
 from hummingbot.model.inventory_cost import InventoryCost
 from hummingbot.model.sql_connection_manager import SQLConnectionManager
 
@@ -24,7 +25,7 @@ class InventoryCostPriceDelegate:
                     session, self.base_asset, self.quote_asset
                 )
 
-                if record is None or record.base_volume is None or record.base_volume is None:
+                if record is None or record.base_volume is None or record.quote_volume is None:
                     return None
 
                 try:
